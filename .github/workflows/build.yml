@@ -1,0 +1,42 @@
+name: build
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  ubuntu-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang pkg-config curl git \
+            libnetfilter-queue-dev libnfnetlink-dev libmnl-dev
+
+      - name: Setup Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+          local-cache: true
+
+      - name: Build
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          make -j
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nfqttl-binaries
+          path: |
+            libs/**/nfqttl
+          if-no-files-found: error
