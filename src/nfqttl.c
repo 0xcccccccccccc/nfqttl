@@ -387,50 +387,34 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	}
 
         if (ph) {
-		id = ntohl(ph->packet_id);
-	        if (len > globalArgs.sizepacket) {
+        id = ntohl(ph->packet_id);
+            if (len > globalArgs.sizepacket) {
                         ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-                } else if(globalArgs.index){
-			if(ntohs(ph->hw_protocol) == 0x0800){
-				struct iphdr *iphdr = (struct iphdr *) newdata;
-				if(iin){
-					if (iin == globalArgs.index){
-						if(iphdr->ttl == 1 && globalArgs.ttl == globalArgs.ttlwan){
-		    					iphdr->ttl = globalArgs.ttl;
-							nfq_ip_set_checksum(iphdr);
-							ret = nfq_set_verdict(qh, id, NF_ACCEPT, len, newdata);
-						}else ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-					}else if (iin != globalArgs.index){
-						if(iphdr->ttl == globalArgs.ttlwan || iphdr->ttl == 128){
-							if(splittcp(newdata, len, &mark, 0)){
-								ret = nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
-							}else if(!globalArgs.mark || (globalArgs.mark && mark != globalArgs.mark)){
-								iphdr->ttl = globalArgs.ttl == globalArgs.ttllan ? 66 : globalArgs.ttllan;
-								nfq_ip_set_checksum(iphdr);
-								ret = nfq_set_verdict(qh, id, NF_ACCEPT, len, newdata);
-							}else ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-						}else ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-					}else ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-				}else if(iout == globalArgs.index){
-					if(iphdr->ttl == globalArgs.ttlwan){
-						if(splittcp(newdata, len, &mark, iout)){
-							ret = nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
-						}else if(!globalArgs.mark || (globalArgs.mark && mark != globalArgs.mark)){
-							iphdr->ttl = globalArgs.ttl;
-							nfq_ip_set_checksum(iphdr);
-							ret = nfq_set_verdict(qh, id, NF_ACCEPT, len, newdata);
-						}else ret = nfq_set_verdict2(qh, id, NF_ACCEPT, mark, 0, NULL);
-					}else ret = nfq_set_verdict2(qh, id, NF_ACCEPT, mark, 0, NULL);
-				}else ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-			}else if(ntohs(ph->hw_protocol) == 0x86dd){
-				struct ip6_hdr *ip6hdr = (struct ip6_hdr *) newdata;
-				if(iout == globalArgs.index && ip6hdr->ip6_hops != globalArgs.ttl){
-					ret = nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
-				}else ret = nfq_set_verdict(qh, id, NF_ACCEPT, len, newdata);
-			}else ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-		}else ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-	}
-	return ret;
+                } else {
+            uint16_t proto = ntohs(ph->hw_protocol);
+            if (proto == 0x0800) {
+                struct iphdr *iphdr = (struct iphdr *) newdata;
+                if (iout) {
+                    iphdr->ttl = 64;
+                    nfq_ip_set_checksum(iphdr);
+                    ret = nfq_set_verdict(qh, id, NF_ACCEPT, len, newdata);
+                } else {
+                    ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+                }
+            } else if (proto == 0x86dd) {
+                struct ip6_hdr *ip6hdr = (struct ip6_hdr *) newdata;
+                if (iout) {
+                    ip6hdr->ip6_hops = 64;
+                    ret = nfq_set_verdict(qh, id, NF_ACCEPT, len, newdata);
+                } else {
+                    ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+                }
+            } else {
+                ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+            }
+        }
+        }
+    return ret;
 }
 int changeuid(){
 
